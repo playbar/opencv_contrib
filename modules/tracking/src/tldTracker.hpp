@@ -52,12 +52,6 @@
 namespace cv
 {
 
-TrackerTLD::Params::Params(){}
-
-void TrackerTLD::Params::read(const cv::FileNode& /*fn*/){}
-
-void TrackerTLD::Params::write(cv::FileStorage& /*fs*/) const {}
-
 namespace tld
 {
 class TrackerProxy
@@ -104,7 +98,7 @@ public:
 	TrackerProxyImpl(Tparams params = Tparams()) :params_(params){}
 	bool init(const Mat& image, const Rect2d& boundingBox)
 	{
-		trackerPtr = T::createTracker();
+        trackerPtr = T::create();
 		return trackerPtr->init(image, boundingBox);
 	}
 	bool update(const Mat& image, Rect2d& boundingBox)
@@ -128,7 +122,11 @@ public:
 	void read(const FileNode& fn);
 	void write(FileStorage& fs) const;
 
-protected:
+    Ptr<TrackerModel> getModel()
+    {
+      return model;
+    }
+
 	class Pexpert
 	{
 	public:

@@ -90,6 +90,46 @@ void OCRHMMDecoder::run(Mat& image, Mat& mask, string& output_text, vector<Rect>
         component_confidences->clear();
 }
 
+String OCRHMMDecoder::run(InputArray image, int min_confidence, int component_level)
+{
+    std::string output1;
+    std::string output2;
+    vector<string> component_texts;
+    vector<float> component_confidences;
+    Mat image_m = image.getMat();
+    run(image_m, output1, NULL, &component_texts, &component_confidences, component_level);
+    for(unsigned int i = 0; i < component_texts.size(); i++)
+    {
+        //cout << "confidence: " << component_confidences[i] << " text:" << component_texts[i] << endl;
+        if(component_confidences[i] > min_confidence)
+        {
+            output2 += component_texts[i];
+        }
+    }
+    return String(output2);
+}
+
+cv::String OCRHMMDecoder::run(InputArray image, InputArray mask, int min_confidence, int component_level)
+{
+    std::string output1;
+    std::string output2;
+    vector<string> component_texts;
+    vector<float> component_confidences;
+    Mat image_m = image.getMat();
+    Mat mask_m = mask.getMat();
+    run(image_m, mask_m, output1, NULL, &component_texts, &component_confidences, component_level);
+    for(unsigned int i = 0; i < component_texts.size(); i++)
+    {
+        cout << "confidence: " << component_confidences[i] << " text:" << component_texts[i] << endl;
+
+        if(component_confidences[i] > min_confidence)
+        {
+            output2 += component_texts[i];
+        }
+    }
+    return String(output2);
+}
+
 void OCRHMMDecoder::ClassifierCallback::eval( InputArray image, vector<int>& out_class, vector<double>& out_confidence)
 {
     CV_Assert(( image.getMat().type() == CV_8UC3 ) || ( image.getMat().type() == CV_8UC1 ));
@@ -635,7 +675,26 @@ Ptr<OCRHMMDecoder> OCRHMMDecoder::create( Ptr<OCRHMMDecoder::ClassifierCallback>
 }
 
 
-class CV_EXPORTS OCRHMMClassifierKNN : public OCRHMMDecoder::ClassifierCallback
+Ptr<OCRHMMDecoder> OCRHMMDecoder::create( Ptr<OCRHMMDecoder::ClassifierCallback> _classifier,
+                                          const String& _vocabulary,
+                                          InputArray transition_p,
+                                          InputArray emission_p,
+                                          int _mode)
+{
+    return makePtr<OCRHMMDecoderImpl>(_classifier, _vocabulary, transition_p, emission_p, (decoder_mode)_mode);
+}
+
+Ptr<OCRHMMDecoder> OCRHMMDecoder::create( const String& _filename,
+                                          const String& _vocabulary,
+                                          InputArray transition_p,
+                                          InputArray emission_p,
+                                          int _mode,
+                                          int _classifier)
+{
+    return makePtr<OCRHMMDecoderImpl>(loadOCRHMMClassifier(_filename, _classifier), _vocabulary, transition_p, emission_p, (decoder_mode)_mode);
+}
+
+class OCRHMMClassifierKNN : public OCRHMMDecoder::ClassifierCallback
 {
 public:
     //constructor
@@ -866,16 +925,30 @@ void OCRHMMClassifierKNN::eval( InputArray _mask, vector<int>& out_class, vector
 
 }
 
-
-Ptr<OCRHMMDecoder::ClassifierCallback> loadOCRHMMClassifierNM(const std::string& filename)
+Ptr<OCRHMMDecoder::ClassifierCallback> loadOCRHMMClassifier(const String& _filename, int _classifier)
 
 {
-    return makePtr<OCRHMMClassifierKNN>(filename);
+    Ptr<OCRHMMDecoder::ClassifierCallback> pt;
+    switch(_classifier) {
+        case OCR_KNN_CLASSIFIER:
+            pt = loadOCRHMMClassifierNM(_filename);
+            break;
+        case OCR_CNN_CLASSIFIER:
+            pt = loadOCRHMMClassifierCNN(_filename);
+        default:
+            CV_Error(Error::StsBadArg, "Specified HMM classifier is not supported!");
+            break;
+    }
+    return pt;
 }
 
+Ptr<OCRHMMDecoder::ClassifierCallback> loadOCRHMMClassifierNM(const String& filename)
 
+{
+    return makePtr<OCRHMMClassifierKNN>(std::string(filename));
+}
 
-class CV_EXPORTS OCRHMMClassifierCNN : public OCRHMMDecoder::ClassifierCallback
+class OCRHMMClassifierCNN : public OCRHMMDecoder::ClassifierCallback
 {
 public:
     //constructor
@@ -887,7 +960,7 @@ public:
 
 protected:
     void normalizeAndZCA(Mat& patches);
-    double eval_feature(Mat& feature, double* prob_estimates);
+    double eval_feature(Mat& feature, vector<double>& prob_estimates);
 
 private:
     int nr_class;		 // number of classes
@@ -934,7 +1007,7 @@ OCRHMMClassifierCNN::OCRHMMClassifierCNN (const string& filename)
 
     nr_feature  = weights.rows;
     nr_class    = weights.cols;
-    patch_size  = (int)sqrt(kernels.cols);
+    patch_size  = cvRound(sqrt((float)kernels.cols));
     // algorithm internal parameters
     window_size = 32;
     num_quads   = 25;
@@ -969,21 +1042,23 @@ void OCRHMMClassifierCNN::eval( InputArray _src, vector<int>& out_class, vector<
 
 
     int quad_id = 1;
-    for (int q_x=0; q_x<=window_size-quad_size; q_x=q_x+(int)(quad_size/2-1))
+    int sz_window_quad = window_size - quad_size;
+    int sz_half_quad = (int)(quad_size/2-1);
+    int sz_quad_patch = quad_size - patch_size;
+    for (int q_x=0; q_x <= sz_window_quad; q_x += sz_half_quad)
     {
-        for (int q_y=0; q_y<=window_size-quad_size; q_y=q_y+(int)(quad_size/2-1))
+        for (int q_y=0; q_y <= sz_window_quad; q_y += sz_half_quad)
         {
             Rect quad_rect = Rect(q_x,q_y,quad_size,quad_size);
             quad = img(quad_rect);
 
             //start sliding window (8x8) in each tile and store the patch as row in data_pool
-            for (int w_x=0; w_x<=quad_size-patch_size; w_x++)
+            for (int w_x = 0; w_x <= sz_quad_patch; w_x++)
             {
-                for (int w_y=0; w_y<=quad_size-patch_size; w_y++)
+                for (int w_y = 0; w_y <= sz_quad_patch; w_y++)
                 {
-                    quad(Rect(w_x,w_y,patch_size,patch_size)).copyTo(tmp);
+                    quad(Rect(w_x,w_y,patch_size,patch_size)).convertTo(tmp, CV_64F);
                     tmp = tmp.reshape(0,1);
-                    tmp.convertTo(tmp, CV_64F);
                     normalizeAndZCA(tmp);
                     vector<double> patch;
                     tmp.copyTo(patch);
@@ -1041,7 +1116,7 @@ void OCRHMMClassifierCNN::eval( InputArray _src, vector<int>& out_class, vector<
                 (feature_max.at<double>(0,k)-feature_min.at<double>(0,k));
     }
 
-    double *p = new double[nr_class];
+    vector<double> p(nr_class, 0);
     double predict_label = eval_feature(feature,p);
     //cout << " Prediction: " << vocabulary[predict_label] << " with probability " << p[0] << endl;
     if (predict_label < 0)
@@ -1058,7 +1133,6 @@ void OCRHMMClassifierCNN::eval( InputArray _src, vector<int>& out_class, vector<
         out_confidence.push_back(p[i]);
       }
     }
-
 
 }
 
@@ -1109,11 +1183,8 @@ void OCRHMMClassifierCNN::normalizeAndZCA(Mat& patches)
 
 }
 
-double OCRHMMClassifierCNN::eval_feature(Mat& feature, double* prob_estimates)
+double OCRHMMClassifierCNN::eval_feature(Mat& feature, vector<double>& prob_estimates)
 {
-    for(int i=0;i<nr_class;i++)
-        prob_estimates[i] = 0;
-
     for(int idx=0; idx<nr_feature; idx++)
         for(int i=0;i<nr_class;i++)
             prob_estimates[i] += weights.at<float>(idx,i)*feature.at<double>(0,idx); //TODO use vectorized dot product
@@ -1139,10 +1210,10 @@ double OCRHMMClassifierCNN::eval_feature(Mat& feature, double* prob_estimates)
 }
 
 
-Ptr<OCRHMMDecoder::ClassifierCallback> loadOCRHMMClassifierCNN(const std::string& filename)
+Ptr<OCRHMMDecoder::ClassifierCallback> loadOCRHMMClassifierCNN(const String& filename)
 
 {
-    return makePtr<OCRHMMClassifierCNN>(filename);
+    return makePtr<OCRHMMClassifierCNN>(std::string(filename));
 }
 
 /** @brief Utility function to create a tailored language model transitions table from a given list of words (lexicon).
@@ -1158,7 +1229,7 @@ the output transition_probabilities_table with them.
 The transition_probabilities_table can be used as input in the OCRHMMDecoder::create() and OCRBeamSearchDecoder::create() methods.
 @note
    -   (C++) An alternative would be to load the default generic language transition table provided in the text module samples folder (created from ispell 42869 english words list) :
-        <https://github.com/Itseez/opencv_contrib/blob/master/modules/text/samples/OCRHMM_transitions_table.xml>
+        <https://github.com/opencv/opencv_contrib/blob/master/modules/text/samples/OCRHMM_transitions_table.xml>
  */
 void createOCRHMMTransitionsTable(string& vocabulary, vector<string>& lexicon, OutputArray _transitions)
 {
@@ -1199,6 +1270,18 @@ void createOCRHMMTransitionsTable(string& vocabulary, vector<string>& lexicon, O
     }
 
     return;
+}
+
+Mat createOCRHMMTransitionsTable(const String& vocabulary, vector<cv::String>& lexicon)
+{
+    std::string voc(vocabulary);
+    vector<string> lex;
+    for(vector<cv::String>::iterator l = lexicon.begin(); l != lexicon.end(); l++)
+      lex.push_back(std::string(*l));
+
+    Mat _transitions;
+    createOCRHMMTransitionsTable(voc, lex, _transitions);
+    return _transitions;
 }
 
 }

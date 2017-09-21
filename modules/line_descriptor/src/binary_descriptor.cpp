@@ -338,11 +338,11 @@ int BinaryDescriptor::descriptorSize() const
 static inline int get2Pow( int i )
 {
   if( i >= 0 && i <= 7 )
-    return (int) pow( 2, (double) i );
-
+    return 1 << i;
   else
   {
-    throw std::runtime_error( "Invalid power argument" );
+    CV_Error( Error::StsBadArg, "Invalid power argument" );
+    return -1;
   }
 }
 
@@ -421,7 +421,7 @@ void BinaryDescriptor::detect( const Mat& image, CV_OUT std::vector<KeyLine>& ke
   }
 
   if( mask.data != NULL && ( mask.size() != image.size() || mask.type() != CV_8UC1 ) )
-  throw std::runtime_error( "Mask error while detecting lines: please check its dimensions and that data type is CV_8UC1" );
+    CV_Error( Error::StsBadArg, "Mask error while detecting lines: please check its dimensions and that data type is CV_8UC1" );
 
   else
   detectImpl( image, keylines, mask );
@@ -441,7 +441,7 @@ void BinaryDescriptor::detect( const std::vector<Mat>& images, std::vector<std::
   for ( size_t counter = 0; counter < images.size(); counter++ )
   {
     if( masks[counter].data != NULL && ( masks[counter].size() != images[counter].size() || masks[counter].type() != CV_8UC1 ) )
-      throw std::runtime_error( "Masks error while detecting lines: please check their dimensions and that data types are CV_8UC1" );
+      CV_Error( Error::StsBadArg, "Mask error while detecting lines: please check its dimensions and that data type is CV_8UC1" );
 
     else
       detectImpl( images[counter], keylines[counter], masks[counter] );
@@ -461,7 +461,7 @@ void BinaryDescriptor::detectImpl( const Mat& imageSrc, std::vector<KeyLine>& ke
 
   /*check whether image depth is different from 0 */
   if( image.depth() != 0 )
-    throw std::runtime_error( "Warning, depth image!= 0" );
+    CV_Error( Error::BadDepth, "Warning, depth image!= 0" );
 
   /* create a pointer to self */
   BinaryDescriptor *bn = const_cast<BinaryDescriptor*>( this );
@@ -511,7 +511,15 @@ void BinaryDescriptor::detectImpl( const Mat& imageSrc, std::vector<KeyLine>& ke
   {
     for ( size_t keyCounter = 0; keyCounter < keylines.size(); keyCounter++ )
     {
-      KeyLine kl = keylines[keyCounter];
+      KeyLine& kl = keylines[keyCounter];
+
+      //due to imprecise floating point scaling in the pyramid a little overflow can occur in line coordinates,
+      //especially on big images. It will be fixed here
+      kl.startPointX = (float)std::min((int)kl.startPointX, mask.cols - 1);
+      kl.startPointY = (float)std::min((int)kl.startPointY, mask.rows - 1);
+      kl.endPointX = (float)std::min((int)kl.endPointX, mask.cols - 1);
+      kl.endPointY = (float)std::min((int)kl.endPointY, mask.rows - 1);
+
       if( mask.at < uchar > ( (int) kl.startPointY, (int) kl.startPointX ) == 0 && mask.at < uchar > ( (int) kl.endPointY, (int) kl.endPointX ) == 0 )
         keylines.erase( keylines.begin() + keyCounter );
     }
@@ -547,7 +555,7 @@ void BinaryDescriptor::computeImpl( const Mat& imageSrc, std::vector<KeyLine>& k
 
   /*check whether image's depth is different from 0 */
   if( image.depth() != 0 )
-    throw std::runtime_error( "Error, depth of image != 0" );
+    CV_Error( Error::BadDepth, "Error, depth of image != 0" );
 
   /* keypoints list can't be empty */
   if( keylines.size() == 0 )
@@ -653,7 +661,7 @@ void BinaryDescriptor::computeImpl( const Mat& imageSrc, std::vector<KeyLine>& k
         uchar* pointerToRow = descriptors.ptr( originalIndex );
 
         /* get LBD data */
-        float* desVec = sl[k][lineC].descriptor.data();
+        float* desVec = &sl[k][lineC].descriptor.front();
 
         /* fill current row with binary descriptor */
         for ( int comb = 0; comb < 32; comb++ )
@@ -692,7 +700,7 @@ int BinaryDescriptor::OctaveKeyLines( cv::Mat& image, ScaleLines &keyLines )
   /* sigma values and reduction factor used in Gaussian pyramids */
   float preSigma2 = 0;  //orignal image is not blurred, has zero sigma;
   float curSigma2 = 1.0;  //[sqrt(2)]^0=1;
-  double factor = sqrt( 2 );  //the down sample factor between connective two octave images
+  double factor = sqrt( 2.0 );  //the down sample factor between connective two octave images
 
   /* loop over number of octaves */
   for ( int octaveCount = 0; octaveCount < params.numOfOctave_; octaveCount++ )
@@ -1241,7 +1249,7 @@ int BinaryDescriptor::computeLBD( ScaleLines &keyLines, bool useDetectionData )
 
       /* construct line descriptor */
       pSingleLine->descriptor.resize( descriptor_size );
-      desVec = pSingleLine->descriptor.data();
+      desVec = &pSingleLine->descriptor.front();
 
       short desID;
 
@@ -1280,7 +1288,7 @@ int BinaryDescriptor::computeLBD( ScaleLines &keyLines, bool useDetectionData )
       float tempM, tempS;
       tempM = 0;
       tempS = 0;
-      desVec = pSingleLine->descriptor.data();
+      desVec = &pSingleLine->descriptor.front();
 
       int base = 0;
       for ( short i = 0; i < (short) ( NUM_OF_BANDS * 8 ); ++base, i = (short) ( base * 8 ) )
@@ -1297,7 +1305,7 @@ int BinaryDescriptor::computeLBD( ScaleLines &keyLines, bool useDetectionData )
 
       tempM = 1 / sqrt( tempM );
       tempS = 1 / sqrt( tempS );
-      desVec = pSingleLine->descriptor.data();
+      desVec = &pSingleLine->descriptor.front();
       base = 0;
       for ( short i = 0; i < (short) ( NUM_OF_BANDS * 8 ); ++base, i = (short) ( base * 8 ) )
       {
@@ -1315,7 +1323,7 @@ int BinaryDescriptor::computeLBD( ScaleLines &keyLines, bool useDetectionData )
        * a threshold is used to limit the value of element in the unit feature
        * vector no larger than this threshold. In Z.Wang's work, a value of 0.4 is found
        * empirically to be a proper threshold.*/
-      desVec = pSingleLine->descriptor.data();
+      desVec = &pSingleLine->descriptor.front();
       for ( short i = 0; i < descriptor_size; i++ )
       {
         if( desVec[i] > 0.4 )
@@ -1344,7 +1352,7 @@ int BinaryDescriptor::computeLBD( ScaleLines &keyLines, bool useDetectionData )
     for ( int g = 0; g < 32; g++ )
     {
       /* get LBD data */
-      float* des_Vec = keyLines[lineIDInScaleVec][0].descriptor.data();
+      float* des_Vec = &keyLines[lineIDInScaleVec][0].descriptor.front();
       *pointerToRow = des_Vec[g];
       pointerToRow++;
 
@@ -2196,6 +2204,11 @@ int BinaryDescriptor::EDLineDetector::EdgeDrawing( cv::Mat &image, EdgeChains &e
         "numofedgePixel1 = " << offsetPFirst << ",  numofedgePixel2 = " << offsetPSecond << ", MaxNumOfEdgePixel=" << edgePixelArraySize << std::endl;
     return -1;
   }
+  if( !(offsetPFirst && offsetPSecond) )
+  {
+      std::cout << "Edge drawing Error: lines not found" << std::endl;
+      return -1;
+  }
 
   /*now all the edge information are stored in pFirstPartEdgeX_, pFirstPartEdgeY_,
    *pFirstPartEdgeS_,  pSecondPartEdgeX_, pSecondPartEdgeY_, pSecondPartEdgeS_;
@@ -2204,9 +2217,9 @@ int BinaryDescriptor::EDLineDetector::EdgeDrawing( cv::Mat &image, EdgeChains &e
   edgeChains.xCors.resize( offsetPFirst + offsetPSecond );
   edgeChains.yCors.resize( offsetPFirst + offsetPSecond );
   edgeChains.sId.resize( offsetPS + 1 );
-  unsigned int *pxCors = edgeChains.xCors.data();
-  unsigned int *pyCors = edgeChains.yCors.data();
-  unsigned int *psId = edgeChains.sId.data();
+  unsigned int *pxCors = &edgeChains.xCors.front();
+  unsigned int *pyCors = &edgeChains.yCors.front();
+  unsigned int *psId = &edgeChains.sId.front();
   offsetPFirst = 0;
   offsetPSecond = 0;
   unsigned int indexInCors = 0;
@@ -2252,12 +2265,12 @@ int BinaryDescriptor::EDLineDetector::EDline( cv::Mat &image, LineChains &lines 
   lines.xCors.resize( linePixelID );
   lines.yCors.resize( linePixelID );
   lines.sId.resize( 5 * edges.numOfEdges );
-  unsigned int *pEdgeXCors = edges.xCors.data();
-  unsigned int *pEdgeYCors = edges.yCors.data();
-  unsigned int *pEdgeSID = edges.sId.data();
-  unsigned int *pLineXCors = lines.xCors.data();
-  unsigned int *pLineYCors = lines.yCors.data();
-  unsigned int *pLineSID = lines.sId.data();
+  unsigned int *pEdgeXCors = &edges.xCors.front();
+  unsigned int *pEdgeYCors = &edges.yCors.front();
+  unsigned int *pEdgeSID = &edges.sId.front();
+  unsigned int *pLineXCors = &lines.xCors.front();
+  unsigned int *pLineYCors = &lines.yCors.front();
+  unsigned int *pLineSID = &lines.sId.front();
   logNT_ = 2.0 * ( log10( (double) imageWidth ) + log10( (double) imageHeight ) );
   double lineFitErr = 0;    //the line fit error;
   std::vector<double> lineEquation( 2, 0 );
@@ -2732,9 +2745,9 @@ int BinaryDescriptor::EDLineDetector::EDline( cv::Mat &image )
   lineSalience_.resize( lines_.numOfLines );
   unsigned char *pgImg = gImgWO_.ptr();
   unsigned int indexInLineArray;
-  unsigned int *pXCor = lines_.xCors.data();
-  unsigned int *pYCor = lines_.yCors.data();
-  unsigned int *pSID = lines_.sId.data();
+  unsigned int *pXCor = &lines_.xCors.front();
+  unsigned int *pYCor = &lines_.yCors.front();
+  unsigned int *pSID = &lines_.sId.front();
   for ( unsigned int i = 0; i < lineSalience_.size(); i++ )
   {
     int salience = 0;

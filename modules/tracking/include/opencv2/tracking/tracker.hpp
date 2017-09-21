@@ -47,16 +47,11 @@
 #include "feature.hpp"
 #include "onlineMIL.hpp"
 #include "onlineBoosting.hpp"
-#include <iostream>
-
-#define BOILERPLATE_CODE(name,classname) \
-    static Ptr<classname> createTracker(const classname::Params &parameters=classname::Params());\
-    virtual ~classname(){};
 
 /*
  * Partially based on:
  * ====================================================================================================================
- * 	- [AAM] S. Salti, A. Cavallaro, L. Di Stefano, Adaptive Appearance Modeling for Video Tracking: Survey and Evaluation
+ *   - [AAM] S. Salti, A. Cavallaro, L. Di Stefano, Adaptive Appearance Modeling for Video Tracking: Survey and Evaluation
  *  - [AMVOT] X. Li, W. Hu, C. Shen, Z. Zhang, A. Dick, A. van den Hengel, A Survey of Appearance Models in Visual Object Tracking
  *
  * This Tracking API has been designed with PlantUML. If you modify this API please change UML files under modules/tracking/doc/uml
@@ -73,7 +68,7 @@ namespace cv
 
 /** @brief Abstract base class for TrackerFeature that represents the feature.
  */
-class CV_EXPORTS_W TrackerFeature
+class CV_EXPORTS TrackerFeature
 {
  public:
   virtual ~TrackerFeature();
@@ -130,7 +125,7 @@ TrackerFeatureSet is an aggregation of TrackerFeature
    TrackerFeature
 
  */
-class CV_EXPORTS_W TrackerFeatureSet
+class CV_EXPORTS TrackerFeatureSet
 {
  public:
 
@@ -199,7 +194,7 @@ class CV_EXPORTS_W TrackerFeatureSet
   bool blockAddTrackerFeature;
 
   std::vector<std::pair<String, Ptr<TrackerFeature> > > features;  //list of features
-  std::vector<Mat> responses;				//list of response after compute
+  std::vector<Mat> responses;        //list of response after compute
 
 };
 
@@ -208,7 +203,7 @@ class CV_EXPORTS_W TrackerFeatureSet
 /** @brief Abstract base class for TrackerSamplerAlgorithm that represents the algorithm for the specific
 sampler.
  */
-class CV_EXPORTS_W TrackerSamplerAlgorithm
+class CV_EXPORTS TrackerSamplerAlgorithm
 {
  public:
   /**
@@ -260,7 +255,7 @@ TrackerSampler is an aggregation of TrackerSamplerAlgorithm
 @sa
    TrackerSamplerAlgorithm
  */
-class CV_EXPORTS_W TrackerSampler
+class CV_EXPORTS TrackerSampler
 {
  public:
 
@@ -333,7 +328,7 @@ See @cite AAM \f$\hat{x}^{i}_{k}\f$ all the states candidates.
 Inherits this class with your Target state, In own implementation you can add scale variation,
 width, height, orientation, etc.
  */
-class CV_EXPORTS_W TrackerTargetState
+class CV_EXPORTS TrackerTargetState
 {
  public:
   virtual ~TrackerTargetState()
@@ -402,7 +397,7 @@ See @cite AAM State estimator
 
 See @cite AMVOT Statistical modeling (Fig. 3), Table III (generative) - IV (discriminative) - V (hybrid)
  */
-class CV_EXPORTS_W TrackerStateEstimator
+class CV_EXPORTS TrackerStateEstimator
 {
  public:
   virtual ~TrackerStateEstimator();
@@ -448,7 +443,7 @@ See @cite AAM Ak
 
 Inherits this with your TrackerModel
  */
-class CV_EXPORTS_W TrackerModel
+class CV_EXPORTS TrackerModel
 {
  public:
 
@@ -538,7 +533,7 @@ class CV_EXPORTS_W Tracker : public virtual Algorithm
 
     @return True if initialization went succesfully, false otherwise
      */
-  bool init( const Mat& image, const Rect2d& boundingBox );
+  CV_WRAP bool init( InputArray image, const Rect2d& boundingBox );
 
   /** @brief Update the tracker, find the new most likely bounding box for the target
     @param image The current frame
@@ -549,17 +544,7 @@ class CV_EXPORTS_W Tracker : public virtual Algorithm
     current frame. Note, that latter *does not* imply that tracker has failed, maybe target is indeed
     missing from the frame (say, out of sight)
      */
-  bool update( const Mat& image, Rect2d& boundingBox );
-
-  /** @brief Creates a tracker by its name.
-    @param trackerType Tracker type
-
-    The following detector types are supported:
-
-    -   "MIL" -- TrackerMIL
-    -   "BOOSTING" -- TrackerBoosting
-     */
-  static Ptr<Tracker> create( const String& trackerType );
+  CV_WRAP bool update( InputArray image, CV_OUT Rect2d& boundingBox );
 
   virtual void read( const FileNode& fn )=0;
   virtual void write( FileStorage& fs ) const=0;
@@ -576,11 +561,12 @@ class CV_EXPORTS_W Tracker : public virtual Algorithm
   Ptr<TrackerModel> model;
 };
 
+
 /************************************ Specific TrackerStateEstimator Classes ************************************/
 
 /** @brief TrackerStateEstimator based on Boosting
     */
-class CV_EXPORTS_W TrackerStateEstimatorMILBoosting : public TrackerStateEstimator
+class CV_EXPORTS TrackerStateEstimatorMILBoosting : public TrackerStateEstimator
 {
  public:
 
@@ -657,7 +643,7 @@ class CV_EXPORTS_W TrackerStateEstimatorMILBoosting : public TrackerStateEstimat
 
 /** @brief TrackerStateEstimatorAdaBoosting based on ADA-Boosting
  */
-class CV_EXPORTS_W TrackerStateEstimatorAdaBoosting : public TrackerStateEstimator
+class CV_EXPORTS TrackerStateEstimatorAdaBoosting : public TrackerStateEstimator
 {
  public:
   /** @brief Implementation of the target state for TrackerAdaBoostingTargetState
@@ -767,7 +753,7 @@ class CV_EXPORTS_W TrackerStateEstimatorAdaBoosting : public TrackerStateEstimat
 /**
  * \brief TrackerStateEstimator based on SVM
  */
-class CV_EXPORTS_W TrackerStateEstimatorSVM : public TrackerStateEstimator
+class CV_EXPORTS TrackerStateEstimatorSVM : public TrackerStateEstimator
 {
  public:
   TrackerStateEstimatorSVM();
@@ -782,7 +768,7 @@ class CV_EXPORTS_W TrackerStateEstimatorSVM : public TrackerStateEstimator
 
 /** @brief TrackerSampler based on CSC (current state centered), used by MIL algorithm TrackerMIL
  */
-class CV_EXPORTS_W TrackerSamplerCSC : public TrackerSamplerAlgorithm
+class CV_EXPORTS TrackerSamplerCSC : public TrackerSamplerAlgorithm
 {
  public:
   enum
@@ -799,7 +785,7 @@ class CV_EXPORTS_W TrackerSamplerCSC : public TrackerSamplerAlgorithm
     Params();
     float initInRad;        //!< radius for gathering positive instances during init
     float trackInPosRad;    //!< radius for gathering positive instances during tracking
-    float searchWinSize;	//!< size of search window
+    float searchWinSize;  //!< size of search window
     int initMaxNegNum;      //!< # negative samples to use during init
     int trackMaxPosNum;     //!< # positive samples to use during training
     int trackMaxNegNum;     //!< # negative samples to use during training
@@ -840,7 +826,7 @@ class CV_EXPORTS_W TrackerSamplerCSC : public TrackerSamplerAlgorithm
 
 /** @brief TrackerSampler based on CS (current state), used by algorithm TrackerBoosting
  */
-class CV_EXPORTS_W TrackerSamplerCS : public TrackerSamplerAlgorithm
+class CV_EXPORTS TrackerSamplerCS : public TrackerSamplerAlgorithm
 {
  public:
   enum
@@ -907,7 +893,7 @@ It should be noted, that the definition of "similarity" between two rectangles i
 their histograms. As experiments show, tracker is *not* very succesfull if target is assumed to
 strongly change its dimensions.
  */
-class CV_EXPORTS_W TrackerSamplerPF : public TrackerSamplerAlgorithm
+class CV_EXPORTS TrackerSamplerPF : public TrackerSamplerAlgorithm
 {
 public:
   /** @brief This structure contains all the parameters that can be varied during the course of sampling
@@ -942,7 +928,7 @@ private:
 /**
  * \brief TrackerFeature based on Feature2D
  */
-class CV_EXPORTS_W TrackerFeatureFeature2d : public TrackerFeature
+class CV_EXPORTS TrackerFeatureFeature2d : public TrackerFeature
 {
  public:
 
@@ -969,7 +955,7 @@ class CV_EXPORTS_W TrackerFeatureFeature2d : public TrackerFeature
 /**
  * \brief TrackerFeature based on HOG
  */
-class CV_EXPORTS_W TrackerFeatureHOG : public TrackerFeature
+class CV_EXPORTS TrackerFeatureHOG : public TrackerFeature
 {
  public:
 
@@ -988,7 +974,7 @@ class CV_EXPORTS_W TrackerFeatureHOG : public TrackerFeature
 /** @brief TrackerFeature based on HAAR features, used by TrackerMIL and many others algorithms
 @note HAAR features implementation is copied from apps/traincascade and modified according to MIL
  */
-class CV_EXPORTS_W TrackerFeatureHAAR : public TrackerFeature
+class CV_EXPORTS TrackerFeatureHAAR : public TrackerFeature
 {
  public:
   struct CV_EXPORTS Params
@@ -1050,7 +1036,7 @@ class CV_EXPORTS_W TrackerFeatureHAAR : public TrackerFeature
 /**
  * \brief TrackerFeature based on LBP
  */
-class CV_EXPORTS_W TrackerFeatureLBP : public TrackerFeature
+class CV_EXPORTS TrackerFeatureLBP : public TrackerFeature
 {
  public:
 
@@ -1083,12 +1069,12 @@ class CV_EXPORTS_W TrackerMIL : public Tracker
   {
     Params();
     //parameters for sampler
-    float samplerInitInRadius;	//!< radius for gathering positive instances during init
+    float samplerInitInRadius;  //!< radius for gathering positive instances during init
     int samplerInitMaxNegNum;  //!< # negative samples to use during init
     float samplerSearchWinSize;  //!< size of search window
     float samplerTrackInRadius;  //!< radius for gathering positive instances during tracking
-    int samplerTrackMaxPosNum;	//!< # positive samples to use during tracking
-    int samplerTrackMaxNegNum;	//!< # negative samples to use during tracking
+    int samplerTrackMaxPosNum;  //!< # positive samples to use during tracking
+    int samplerTrackMaxNegNum;  //!< # negative samples to use during tracking
     int featureSetNumFeatures;  //!< # features
 
     void read( const FileNode& fn );
@@ -1098,7 +1084,11 @@ class CV_EXPORTS_W TrackerMIL : public Tracker
   /** @brief Constructor
     @param parameters MIL parameters TrackerMIL::Params
      */
-  BOILERPLATE_CODE("MIL",TrackerMIL);
+  static Ptr<TrackerMIL> create(const TrackerMIL::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerMIL> create();
+
+  virtual ~TrackerMIL() {}
 };
 
 /** @brief This is a real-time object tracking based on a novel on-line version of the AdaBoost algorithm.
@@ -1131,7 +1121,11 @@ class CV_EXPORTS_W TrackerBoosting : public Tracker
   /** @brief Constructor
     @param parameters BOOSTING parameters TrackerBoosting::Params
      */
-  BOILERPLATE_CODE("BOOSTING",TrackerBoosting);
+  static Ptr<TrackerBoosting> create(const TrackerBoosting::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerBoosting> create();
+
+  virtual ~TrackerBoosting() {}
 };
 
 /** @brief Median Flow tracker implementation.
@@ -1149,9 +1143,16 @@ class CV_EXPORTS_W TrackerMedianFlow : public Tracker
  public:
   struct CV_EXPORTS Params
   {
-    Params();
-    int pointsInGrid; //!<square root of number of keypoints used; increase it to trade
-                      //!<accurateness for speed; default value is sensible and recommended
+    Params(); //!<default constructor
+              //!<note that the default values of parameters are recommended for most of use cases
+    int pointsInGrid;      //!<square root of number of keypoints used; increase it to trade
+                           //!<accurateness for speed
+    cv::Size winSize;      //!<window size parameter for Lucas-Kanade optical flow
+    int maxLevel;          //!<maximal pyramid level number for Lucas-Kanade optical flow
+    TermCriteria termCriteria; //!<termination criteria for Lucas-Kanade optical flow
+    cv::Size winSizeNCC;   //!<window size around a point for normalized cross-correlation check
+    double maxMedianLengthOfDisplacementDifference; //!<criterion for loosing the tracked object
+
     void read( const FileNode& /*fn*/ );
     void write( FileStorage& /*fs*/ ) const;
   };
@@ -1159,7 +1160,11 @@ class CV_EXPORTS_W TrackerMedianFlow : public Tracker
   /** @brief Constructor
     @param parameters Median Flow parameters TrackerMedianFlow::Params
     */
-  BOILERPLATE_CODE("MEDIANFLOW",TrackerMedianFlow);
+  static Ptr<TrackerMedianFlow> create(const TrackerMedianFlow::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerMedianFlow> create();
+
+  virtual ~TrackerMedianFlow() {}
 };
 
 /** @brief TLD is a novel tracking framework that explicitly decomposes the long-term tracking task into
@@ -1186,43 +1191,52 @@ class CV_EXPORTS_W TrackerTLD : public Tracker
   /** @brief Constructor
     @param parameters TLD parameters TrackerTLD::Params
      */
-  BOILERPLATE_CODE("TLD",TrackerTLD);
+  static Ptr<TrackerTLD> create(const TrackerTLD::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerTLD> create();
+
+  virtual ~TrackerTLD() {}
 };
 
 /** @brief KCF is a novel tracking framework that utilizes properties of circulant matrix to enhance the processing speed.
  * This tracking method is an implementation of @cite KCF_ECCV which is extended to KFC with color-names features (@cite KCF_CN).
- * The original paper of KCF is available at <http://home.isr.uc.pt/~henriques/circulant/index.html>
+ * The original paper of KCF is available at <http://www.robots.ox.ac.uk/~joao/publications/henriques_tpami2015.pdf>
  * as well as the matlab implementation. For more information about KCF with color-names features, please refer to
  * <http://www.cvl.isy.liu.se/research/objrec/visualtracking/colvistrack/index.html>.
  */
 class CV_EXPORTS_W TrackerKCF : public Tracker
 {
- public:
+public:
   /**
-   * \brief Feature type to be used in the tracking grayscale, colornames, compressed color-names
-   * The modes available now:
-    -   "GRAY" -- Use grayscale values as the feature
-    -   "CN" -- Color-names feature
-   */
-  enum MODE {GRAY, CN, CN2};
+  * \brief Feature type to be used in the tracking grayscale, colornames, compressed color-names
+  * The modes available now:
+  -   "GRAY" -- Use grayscale values as the feature
+  -   "CN" -- Color-names feature
+  */
+  enum MODE {
+    GRAY   = (1 << 0),
+    CN     = (1 << 1),
+    CUSTOM = (1 << 2)
+  };
 
   struct CV_EXPORTS Params
   {
     /**
-     * \brief Constructor
-     */
+    * \brief Constructor
+    */
     Params();
 
     /**
-     * \brief Read parameters from file, currently unused
-     */
-    void read( const FileNode& /*fn*/ );
+    * \brief Read parameters from file, currently unused
+    */
+    void read(const FileNode& /*fn*/);
 
     /**
-     * \brief Read parameters from file, currently unused
-     */
-    void write( FileStorage& /*fs*/ ) const;
+    * \brief Read parameters from file, currently unused
+    */
+    void write(FileStorage& /*fs*/) const;
 
+    double detect_thresh;         //!<  detection confidence threshold
     double sigma;                 //!<  gaussian kernel bandwidth
     double lambda;                //!<  regularization
     double interp_factor;         //!<  linear interpolation factor for adaptation
@@ -1234,13 +1248,200 @@ class CV_EXPORTS_W TrackerKCF : public Tracker
     bool compress_feature;        //!<  activate the pca method to compress the features
     int max_patch_size;           //!<  threshold for the ROI size
     int compressed_size;          //!<  feature size after compression
-    MODE descriptor;              //!<  descriptor type
+    int desc_pca;        //!<  compressed descriptors of TrackerKCF::MODE
+    int desc_npca;       //!<  non-compressed descriptors of TrackerKCF::MODE
+  };
+
+  virtual void setFeatureExtractor(void(*)(const Mat, const Rect, Mat&), bool pca_func = false) = 0;
+
+  /** @brief Constructor
+  @param parameters KCF parameters TrackerKCF::Params
+  */
+  static Ptr<TrackerKCF> create(const TrackerKCF::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerKCF> create();
+
+  virtual ~TrackerKCF() {}
+};
+
+/** @brief GOTURN (@cite GOTURN) is kind of trackers based on Convolutional Neural Networks (CNN). While taking all advantages of CNN trackers,
+ *  GOTURN is much faster due to offline training without online fine-tuning nature.
+ *  GOTURN tracker addresses the problem of single target tracking: given a bounding box label of an object in the first frame of the video,
+ *  we track that object through the rest of the video. NOTE: Current method of GOTURN does not handle occlusions; however, it is fairly
+ *  robust to viewpoint changes, lighting changes, and deformations.
+ *  Inputs of GOTURN are two RGB patches representing Target and Search patches resized to 227x227.
+ *  Outputs of GOTURN are predicted bounding box coordinates, relative to Search patch coordinate system, in format X1,Y1,X2,Y2.
+ *  Original paper is here: <http://davheld.github.io/GOTURN/GOTURN.pdf>
+ *  As long as original authors implementation: <https://github.com/davheld/GOTURN#train-the-tracker>
+ *  Implementation of training algorithm is placed in separately here due to 3d-party dependencies:
+ *  <https://github.com/Auron-X/GOTURN_Training_Toolkit>
+ *  GOTURN architecture goturn.prototxt and trained model goturn.caffemodel are accessible on opencv_extra GitHub repository.
+*/
+class CV_EXPORTS_W TrackerGOTURN : public Tracker
+{
+public:
+  struct CV_EXPORTS Params
+  {
+    Params();
+    void read(const FileNode& /*fn*/);
+    void write(FileStorage& /*fs*/) const;
   };
 
   /** @brief Constructor
-      @param parameters KCF parameters TrackerKCF::Params
+  @param parameters GOTURN parameters TrackerGOTURN::Params
   */
-  BOILERPLATE_CODE("KCF",TrackerKCF);
+  static Ptr<TrackerGOTURN> create(const TrackerGOTURN::Params &parameters);
+
+  CV_WRAP static Ptr<TrackerGOTURN> create();
+
+  virtual ~TrackerGOTURN() {}
+};
+
+/************************************ MultiTracker Class ---By Laksono Kurnianggoro---) ************************************/
+/** @brief This class is used to track multiple objects using the specified tracker algorithm.
+* The MultiTracker is naive implementation of multiple object tracking.
+* It process the tracked objects independently without any optimization accross the tracked objects.
+*/
+class CV_EXPORTS_W MultiTracker : public Algorithm
+{
+public:
+
+  /**
+  * \brief Constructor.
+  */
+  CV_WRAP MultiTracker();
+
+  /**
+  * \brief Destructor
+  */
+  ~MultiTracker();
+
+  /**
+  * \brief Add a new object to be tracked.
+  *
+  * @param newTracker tracking algorithm to be used
+  * @param image input image
+  * @param boundingBox a rectangle represents ROI of the tracked object
+  */
+  CV_WRAP bool add(Ptr<Tracker> newTracker, InputArray image, const Rect2d& boundingBox);
+
+  /**
+  * \brief Add a set of objects to be tracked.
+  * @param newTrackers list of tracking algorithms to be used
+  * @param image input image
+  * @param boundingBox list of the tracked objects
+  */
+  bool add(std::vector<Ptr<Tracker> > newTrackers, InputArray image, std::vector<Rect2d> boundingBox);
+
+  /**
+  * \brief Update the current tracking status.
+  * The result will be saved in the internal storage.
+  * @param image input image
+  */
+  bool update(InputArray image);
+
+  /**
+  * \brief Update the current tracking status.
+  * @param image input image
+  * @param boundingBox the tracking result, represent a list of ROIs of the tracked objects.
+  */
+  CV_WRAP bool update(InputArray image, CV_OUT std::vector<Rect2d> & boundingBox);
+
+  /**
+  * \brief Returns a reference to a storage for the tracked objects, each object corresponds to one tracker algorithm
+  */
+  CV_WRAP const std::vector<Rect2d>& getObjects() const;
+
+  /**
+  * \brief Returns a pointer to a new instance of MultiTracker
+  */
+  CV_WRAP static Ptr<MultiTracker> create();
+
+protected:
+  //!<  storage for the tracker algorithms.
+  std::vector< Ptr<Tracker> > trackerList;
+
+  //!<  storage for the tracked objects, each object corresponds to one tracker algorithm.
+  std::vector<Rect2d> objects;
+};
+
+/************************************ Multi-Tracker Classes ---By Tyan Vladimir---************************************/
+
+/** @brief Base abstract class for the long-term Multi Object Trackers:
+
+@sa Tracker, MultiTrackerTLD
+*/
+class CV_EXPORTS MultiTracker_Alt
+{
+public:
+  /** @brief Constructor for Multitracker
+  */
+  MultiTracker_Alt()
+  {
+    targetNum = 0;
+  }
+
+  /** @brief Add a new target to a tracking-list and initialize the tracker with a know bounding box that surrounding the target
+  @param image The initial frame
+  @param boundingBox The initial boundig box of target
+  @param tracker_algorithm Multi-tracker algorithm
+
+  @return True if new target initialization went succesfully, false otherwise
+  */
+  bool addTarget(InputArray image, const Rect2d& boundingBox, Ptr<Tracker> tracker_algorithm);
+
+  /** @brief Update all trackers from the tracking-list, find a new most likely bounding boxes for the targets
+  @param image The current frame
+
+  @return True means that all targets were located and false means that tracker couldn't locate one of the targets in
+  current frame. Note, that latter *does not* imply that tracker has failed, maybe target is indeed
+  missing from the frame (say, out of sight)
+  */
+  bool update(InputArray image);
+
+  /** @brief Current number of targets in tracking-list
+  */
+  int targetNum;
+
+  /** @brief Trackers list for Multi-Object-Tracker
+  */
+  std::vector <Ptr<Tracker> > trackers;
+
+  /** @brief Bounding Boxes list for Multi-Object-Tracker
+  */
+  std::vector <Rect2d> boundingBoxes;
+  /** @brief List of randomly generated colors for bounding boxes display
+  */
+  std::vector<Scalar> colors;
+};
+
+/** @brief Multi Object Tracker for TLD. TLD is a novel tracking framework that explicitly decomposes
+the long-term tracking task into tracking, learning and detection.
+
+The tracker follows the object from frame to frame. The detector localizes all appearances that
+have been observed so far and corrects the tracker if necessary. The learning estimates detector’s
+errors and updates it to avoid these errors in the future. The implementation is based on @cite TLD .
+
+The Median Flow algorithm (see cv::TrackerMedianFlow) was chosen as a tracking component in this
+implementation, following authors. Tracker is supposed to be able to handle rapid motions, partial
+occlusions, object absence etc.
+
+@sa Tracker, MultiTracker, TrackerTLD
+*/
+class CV_EXPORTS MultiTrackerTLD : public MultiTracker_Alt
+{
+public:
+  /** @brief Update all trackers from the tracking-list, find a new most likely bounding boxes for the targets by
+  optimized update method using some techniques to speedup calculations specifically for MO TLD. The only limitation
+  is that all target bounding boxes should have approximately same aspect ratios. Speed boost is around 20%
+
+  @param image The current frame.
+
+  @return True means that all targets were located and false means that tracker couldn't locate one of the targets in
+  current frame. Note, that latter *does not* imply that tracker has failed, maybe target is indeed
+  missing from the frame (say, out of sight)
+  */
+  bool update_opt(InputArray image);
 };
 
 //! @}

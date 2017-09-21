@@ -41,6 +41,8 @@
 
 #include "tldModel.hpp"
 
+#include <opencv2/core/utility.hpp>
+
 namespace cv
 {
 	namespace tld
@@ -140,7 +142,6 @@ namespace cv
 						detector->classifiers[k].integrate(blurredPatch, false);
 				}
 			}
-			//dprintf(("positive patches: %d\nnegative patches: %d\n", (int)positiveExamples.size(), (int)negativeExamples.size()));
 		}
 
 
@@ -180,30 +181,44 @@ namespace cv
 						detector->classifiers[i].integrate(blurredPatch, patches[k].isObject);
 				}
 			}
-			/*
-			if( negativeIntoModel > 0 )
-			dfprintf((stdout, "negativeIntoModel = %d ", negativeIntoModel));
-			if( positiveIntoModel > 0)
-			dfprintf((stdout, "positiveIntoModel = %d ", positiveIntoModel));
-			if( negativeIntoEnsemble > 0 )
-			dfprintf((stdout, "negativeIntoEnsemble = %d ", negativeIntoEnsemble));
-			if( positiveIntoEnsemble > 0 )
-			dfprintf((stdout, "positiveIntoEnsemble = %d ", positiveIntoEnsemble));
-			dfprintf((stdout, "\n"));*/
 
 		}
+
+		class CalcSrParallelLoopBody: public cv::ParallelLoopBody
+		{
+		public:
+			explicit CalcSrParallelLoopBody (TrackerTLDModel * model, const std::vector<Mat_<uchar> >& eForModel):
+				modelF (model),
+				eForModelF (eForModel)
+			{
+			}
+
+			virtual void operator () (const cv::Range & r) const
+			{
+				for (int ind = r.start; ind < r.end; ++ind)
+				{
+					modelF->srValues[ind] = modelF->detector->Sr (eForModelF[ind]);
+				}
+			}
+
+			TrackerTLDModel * modelF;
+			const std::vector<Mat_<uchar> >& eForModelF;
+		private:
+			CalcSrParallelLoopBody (const CalcSrParallelLoopBody&);
+			CalcSrParallelLoopBody& operator= (const CalcSrParallelLoopBody&);
+		};
 
 		void TrackerTLDModel::integrateAdditional(const std::vector<Mat_<uchar> >& eForModel, const std::vector<Mat_<uchar> >& eForEnsemble, bool isPositive)
 		{
 			int positiveIntoModel = 0, negativeIntoModel = 0, positiveIntoEnsemble = 0, negativeIntoEnsemble = 0;
 			if ((int)eForModel.size() == 0) return;
 
-			//int64 e1, e2;
-			//double t;
-			//e1 = getTickCount();
+			srValues.resize (eForModel.size ());
+			cv::parallel_for_ (cv::Range (0, (int)eForModel.size ()), CalcSrParallelLoopBody (this, eForModel));
+
 			for (int k = 0; k < (int)eForModel.size(); k++)
 			{
-				double sr = detector->Sr(eForModel[k]);
+				const double sr = srValues[k];
 				if ((sr > THETA_NN) != isPositive)
 				{
 					if (isPositive)
@@ -231,29 +246,13 @@ namespace cv
 						detector->classifiers[i].integrate(eForEnsemble[k], isPositive);
 				}
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency() * 1000;
-			//printf("Integrate Additional: %fms\n", t);
-			/*
-			if( negativeIntoModel > 0 )
-			dfprintf((stdout, "negativeIntoModel = %d ", negativeIntoModel));
-			if( positiveIntoModel > 0 )
-			dfprintf((stdout, "positiveIntoModel = %d ", positiveIntoModel));
-			if( negativeIntoEnsemble > 0 )
-			dfprintf((stdout, "negativeIntoEnsemble = %d ", negativeIntoEnsemble));
-			if( positiveIntoEnsemble > 0 )
-			dfprintf((stdout, "positiveIntoEnsemble = %d ", positiveIntoEnsemble));
-			dfprintf((stdout, "\n"));*/
 		}
 
+#ifdef HAVE_OPENCL
 		void TrackerTLDModel::ocl_integrateAdditional(const std::vector<Mat_<uchar> >& eForModel, const std::vector<Mat_<uchar> >& eForEnsemble, bool isPositive)
 		{
 			int positiveIntoModel = 0, negativeIntoModel = 0, positiveIntoEnsemble = 0, negativeIntoEnsemble = 0;
 			if ((int)eForModel.size() == 0) return;
-
-			//int64 e1, e2;
-			//double t;
-			//e1 = getTickCount();
 
 			//Prepare batch of patches
 			int numOfPatches = (int)eForModel.size();
@@ -301,20 +300,8 @@ namespace cv
 						detector->classifiers[i].integrate(eForEnsemble[k], isPositive);
 				}
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency() * 1000;
-			//printf("Integrate Additional OCL: %fms\n", t);
-			/*
-			if( negativeIntoModel > 0 )
-			dfprintf((stdout, "negativeIntoModel = %d ", negativeIntoModel));
-			if( positiveIntoModel > 0 )
-			dfprintf((stdout, "positiveIntoModel = %d ", positiveIntoModel));
-			if( negativeIntoEnsemble > 0 )
-			dfprintf((stdout, "negativeIntoEnsemble = %d ", negativeIntoEnsemble));
-			if( positiveIntoEnsemble > 0 )
-			dfprintf((stdout, "positiveIntoEnsemble = %d ", positiveIntoEnsemble));
-			dfprintf((stdout, "\n"));*/
 		}
+#endif // HAVE_OPENCL
 
 		//Push the patch to the model
 		void TrackerTLDModel::pushIntoModel(const Mat_<uchar>& example, bool positive)

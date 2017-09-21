@@ -71,9 +71,9 @@ class TrackerMILImpl : public TrackerMIL
 TrackerMIL::Params::Params()
 {
   samplerInitInRadius = 3;
-  samplerTrackInRadius = 4;
   samplerSearchWinSize = 25;
   samplerInitMaxNegNum = 65;
+  samplerTrackInRadius = 4;
   samplerTrackMaxPosNum = 100000;
   samplerTrackMaxNegNum = 65;
   featureSetNumFeatures = 250;
@@ -83,7 +83,7 @@ void TrackerMIL::Params::read( const cv::FileNode& fn )
 {
   samplerInitInRadius = fn["samplerInitInRadius"];
   samplerSearchWinSize = fn["samplerSearchWinSize"];
-  samplerInitInRadius = fn["samplerInitInRadius"];
+  samplerInitMaxNegNum = fn["samplerInitMaxNegNum"];
   samplerTrackInRadius = fn["samplerTrackInRadius"];
   samplerTrackMaxPosNum = fn["samplerTrackMaxPosNum"];
   samplerTrackMaxNegNum = fn["samplerTrackMaxNegNum"];
@@ -94,7 +94,7 @@ void TrackerMIL::Params::write( cv::FileStorage& fs ) const
 {
   fs << "samplerInitInRadius" << samplerInitInRadius;
   fs << "samplerSearchWinSize" << samplerSearchWinSize;
-  fs << "samplerInitInRadius" << samplerInitInRadius;
+  fs << "samplerInitMaxNegNum" << samplerInitMaxNegNum;
   fs << "samplerTrackInRadius" << samplerTrackInRadius;
   fs << "samplerTrackMaxPosNum" << samplerTrackMaxPosNum;
   fs << "samplerTrackMaxNegNum" << samplerTrackMaxNegNum;
@@ -105,8 +105,11 @@ void TrackerMIL::Params::write( cv::FileStorage& fs ) const
 /*
  * Constructor
  */
-Ptr<TrackerMIL> TrackerMIL::createTracker(const TrackerMIL::Params &parameters){
+Ptr<TrackerMIL> TrackerMIL::create(const TrackerMIL::Params &parameters){
     return Ptr<TrackerMILImpl>(new TrackerMILImpl(parameters));
+}
+Ptr<TrackerMIL> TrackerMIL::create(){
+    return Ptr<TrackerMILImpl>(new TrackerMILImpl());
 }
 TrackerMILImpl::TrackerMILImpl( const TrackerMIL::Params &parameters ) :
     params( parameters )

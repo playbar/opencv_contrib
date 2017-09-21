@@ -23,9 +23,9 @@ publications, because a lot of people asked for.
 
 The currently available algorithms are:
 
--   Eigenfaces (see createEigenFaceRecognizer)
--   Fisherfaces (see createFisherFaceRecognizer)
--   Local Binary Patterns Histograms (see createLBPHFaceRecognizer)
+-   Eigenfaces (see EigenFaceRecognizer::create)
+-   Fisherfaces (see FisherFaceRecognizer::create)
+-   Local Binary Patterns Histograms (see LBPHFaceRecognizer::create)
 
 You don't need to copy and paste the source code examples from this page, because they are available
 in the src folder coming with this documentation. If you have built OpenCV with the samples turned
@@ -632,11 +632,11 @@ philipp@mango:~/facerec/data/at$ tree
 |   |-- 10.pgm
 @endcode
 
-Then simply call `create_csv.py` with the path to the folder, just like this and you could save the
+Then simply call `create_csv.py at` , here 'at' being the basepath to the folder, just like this and you could save the
 output:
 
 @code{.sh}
-philipp@mango:~/facerec/data$ python create_csv.py
+philipp@mango:~/facerec/data$ python create_csv.py at
 at/s13/2.pgm;0
 at/s13/7.pgm;0
 at/s13/6.pgm;0

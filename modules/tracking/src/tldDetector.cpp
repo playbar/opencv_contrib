@@ -41,6 +41,8 @@
 
 #include "tldDetector.hpp"
 
+#include <opencv2/core/utility.hpp>
+
 namespace cv
 {
 	namespace tld
@@ -63,27 +65,8 @@ namespace cv
 		}
 
 		// Calculate Relative similarity of the patch (NN-Model)
-		double TLDDetector::Sr(const Mat_<uchar>& patch)
+		double TLDDetector::Sr(const Mat_<uchar>& patch) const
 		{
-			/*
-			int64 e1, e2;
-			float t;
-			e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			for (int i = 0; i < (int)(*positiveExamples).size(); i++)
-				splus = std::max(splus, 0.5 * (NCC((*positiveExamples)[i], patch) + 1.0));
-			for (int i = 0; i < (int)(*negativeExamples).size(); i++)
-				sminus = std::max(sminus, 0.5 * (NCC((*negativeExamples)[i], patch) + 1.0));
-			e2 = getTickCount();
-			t = (e2 - e1) / getTickFrequency()*1000.0;
-			printf("Sr: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-			return splus / (sminus + splus);
-			*/
-			//int64 e1, e2;
-			//float t;
-			//e1 = getTickCount();
 			double splus = 0.0, sminus = 0.0;
 			Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
 			for (int i = 0; i < *posNum; i++)
@@ -96,20 +79,15 @@ namespace cv
 				modelSample.data = &(negExp->data[i * 225]);
 				sminus = std::max(sminus, 0.5 * (NCC(modelSample, patch) + 1.0));
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr CPU: %f\n", t);
+
 			if (splus + sminus == 0.0)
 				return 0.0;
 			return splus / (sminus + splus);
 		}
 
+#ifdef HAVE_OPENCL
 		double TLDDetector::ocl_Sr(const Mat_<uchar>& patch)
 		{
-			//int64 e1, e2, e3, e4;
-			//double t;
-			//e1 = getTickCount();
-			//e3 = getTickCount();
 			double splus = 0.0, sminus = 0.0;
 
 
@@ -122,7 +100,7 @@ namespace cv
 			ocl::Kernel k;
 			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
 			String error;
-			ocl::Program prog(src, NULL, error);
+			ocl::Program prog(src, String(), error);
 			k.create("NCC", prog);
 			if (k.empty())
 				printf("Kernel create failed!!!\n");
@@ -131,51 +109,21 @@ namespace cv
 				ocl::KernelArg::PtrReadOnly(devPositiveSamples),
 				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
 				ocl::KernelArg::PtrWriteOnly(devNCC),
-				posNum,
-				negNum);
-
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
+				*posNum,
+				*negNum);
 
 			size_t globSize = 1000;
-			//e3 = getTickCount();
+
 			if (!k.run(1, &globSize, NULL, false))
 				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
 
-			//e3 = getTickCount();
 			Mat resNCC = devNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
-
-			////Compare
-			//Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			//for (int i = 0; i < 200; i+=17)
-			//{
-			//	modelSample.data = &(posExp->data[i * 225]);
-			//	printf("%f\t%f\n\n", resNCC.at<float>(i), NCC(modelSample, patch));
-			//}
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
-
 
 			for (int i = 0; i < *posNum; i++)
 				splus = std::max(splus, 0.5 * (resNCC.at<float>(i) + 1.0));
 
 			for (int i = 0; i < *negNum; i++)
 				sminus = std::max(sminus, 0.5 * (resNCC.at<float>(i+500) +1.0));
-
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr GPU: %f\n\n", t);
 
 			if (splus + sminus == 0.0)
 				return 0.0;
@@ -184,11 +132,6 @@ namespace cv
 
 		void TLDDetector::ocl_batchSrSc(const Mat_<uchar>& patches, double *resultSr, double *resultSc, int numOfPatches)
 		{
-			//int64 e1, e2, e3, e4;
-			//double t;
-			//e1 = getTickCount();
-			//e3 = getTickCount();
-
 			UMat devPatches = patches.getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
 			UMat devPositiveSamples = posExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
 			UMat devNegativeSamples = negExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -198,7 +141,7 @@ namespace cv
 			ocl::Kernel k;
 			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
 			String error;
-			ocl::Program prog(src, NULL, error);
+			ocl::Program prog(src, String(), error);
 			k.create("batchNCC", prog);
 			if (k.empty())
 				printf("Kernel create failed!!!\n");
@@ -208,29 +151,17 @@ namespace cv
 				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
 				ocl::KernelArg::PtrWriteOnly(devPosNCC),
 				ocl::KernelArg::PtrWriteOnly(devNegNCC),
-				posNum,
-				negNum,
+				*posNum,
+				*negNum,
 				numOfPatches);
 
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
-
-			// 2 -> Pos&Neg
 			size_t globSize = 2 * numOfPatches*MAX_EXAMPLES_IN_MODEL;
-			//e3 = getTickCount();
-			if (!k.run(1, &globSize, NULL, false))
-				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
 
-			//e3 = getTickCount();
+			if (!k.run(1, &globSize, NULL, true))
+				printf("Kernel Run Error!!!");
+
 			Mat posNCC = devPosNCC.getMat(ACCESS_READ);
 			Mat negNCC = devNegNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
 
 			//Calculate Srs
 			for (int id = 0; id < numOfPatches; id++)
@@ -256,62 +187,12 @@ namespace cv
 				else
 					resultSc[id] = spc / (smc + spc);
 			}
-
-			////Compare positive NCCs
-			/*Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			Mat_<uchar> patch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			for (int j = 0; j < numOfPatches; j++)
-			{
-				for (int i = 0; i < 1; i++)
-				{
-					modelSample.data = &(posExp->data[i * 225]);
-					patch.data = &(patches.data[j * 225]);
-					printf("%f\t%f\n", resultSr[j], Sr(patch));
-					printf("%f\t%f\n", resultSc[j], Sc(patch));
-				}
-			}*/
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
-
-
-
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sr GPU: %f\n\n", t);
 		}
+#endif
 
 		// Calculate Conservative similarity of the patch (NN-Model)
-		double TLDDetector::Sc(const Mat_<uchar>& patch)
+		double TLDDetector::Sc(const Mat_<uchar>& patch) const
 		{
-			/*
-			int64 e1, e2;
-			float t;
-			e1 = getTickCount();
-			double splus = 0.0, sminus = 0.0;
-			int med = getMedian((*timeStampsPositive));
-			for (int i = 0; i < (int)(*positiveExamples).size(); i++)
-			{
-				if ((int)(*timeStampsPositive)[i] <= med)
-					splus = std::max(splus, 0.5 * (NCC((*positiveExamples)[i], patch) + 1.0));
-			}
-			for (int i = 0; i < (int)(*negativeExamples).size(); i++)
-				sminus = std::max(sminus, 0.5 * (NCC((*negativeExamples)[i], patch) + 1.0));
-			e2 = getTickCount();
-			t = (e2 - e1) / getTickFrequency()*1000.0;
-			printf("Sc: %f\n", t);
-			if (splus + sminus == 0.0)
-				return 0.0;
-
-			return splus / (sminus + splus);
-			*/
-
-			//int64 e1, e2;
-			//double t;
-			//e1 = getTickCount();
 			double splus = 0.0, sminus = 0.0;
 			Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
 			int med = getMedian((*timeStampsPositive));
@@ -328,23 +209,17 @@ namespace cv
 				modelSample.data = &(negExp->data[i * 225]);
 				sminus = std::max(sminus, 0.5 * (NCC(modelSample, patch) + 1.0));
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sc: %f\n", t);
+
 			if (splus + sminus == 0.0)
 				return 0.0;
 
 			return splus / (sminus + splus);
 		}
 
+#ifdef HAVE_OPENCL
 		double TLDDetector::ocl_Sc(const Mat_<uchar>& patch)
 		{
-			//int64 e1, e2, e3, e4;
-			//float t;
-			//e1 = getTickCount();
 			double splus = 0.0, sminus = 0.0;
-
-			//e3 = getTickCount();
 
 			UMat devPatch = patch.getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
 			UMat devPositiveSamples = posExp->getUMat(ACCESS_READ, USAGE_ALLOCATE_DEVICE_MEMORY);
@@ -355,7 +230,7 @@ namespace cv
 			ocl::Kernel k;
 			ocl::ProgramSource src = ocl::tracking::tldDetector_oclsrc;
 			String error;
-			ocl::Program prog(src, NULL, error);
+			ocl::Program prog(src, String(), error);
 			k.create("NCC", prog);
 			if (k.empty())
 				printf("Kernel create failed!!!\n");
@@ -364,40 +239,15 @@ namespace cv
 				ocl::KernelArg::PtrReadOnly(devPositiveSamples),
 				ocl::KernelArg::PtrReadOnly(devNegativeSamples),
 				ocl::KernelArg::PtrWriteOnly(devNCC),
-				posNum,
-				negNum);
-
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Mem Cpy GPU: %f\n", t);
+				*posNum,
+				*negNum);
 
 			size_t globSize = 1000;
-			//e3 = getTickCount();
+
 			if (!k.run(1, &globSize, NULL, false))
 				printf("Kernel Run Error!!!");
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Kernel Run GPU: %f\n", t);
 
-			//e3 = getTickCount();
 			Mat resNCC = devNCC.getMat(ACCESS_READ);
-			//e4 = getTickCount();
-			//t = (e4 - e3) / getTickFrequency()*1000.0;
-			//printf("Read Mem GPU: %f\n", t);
-
-			////Compare
-			//Mat_<uchar> modelSample(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
-			//for (int i = 0; i < 200; i+=17)
-			//{
-			//	modelSample.data = &(posExp->data[i * 225]);
-			//	printf("%f\t%f\n\n", resNCC.at<float>(i), NCC(modelSample, patch));
-			//}
-
-			//for (int i = 0; i < 200; i+=23)
-			//{
-			//	modelSample.data = &(negExp->data[i * 225]);
-			//	printf("%f\t%f\n", resNCC.at<float>(500+i), NCC(modelSample, patch));
-			//}
 
 			int med = getMedian((*timeStampsPositive));
 			for (int i = 0; i < *posNum; i++)
@@ -407,14 +257,11 @@ namespace cv
 			for (int i = 0; i < *negNum; i++)
 				sminus = std::max(sminus, 0.5 * (resNCC.at<float>(i + 500) + 1.0));
 
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Sc GPU: %f\n\n", t);
-
 			if (splus + sminus == 0.0)
 				return 0.0;
 			return splus / (sminus + splus);
 		}
+#endif // HAVE_OPENCL
 
 		// Generate Search Windows for detector from aspect ratio of initial BBs
 		void TLDDetector::generateScanGrid(int rows, int cols, Size initBox, std::vector<Rect2d>& res, bool withScaling)
@@ -449,15 +296,42 @@ namespace cv
 					break;
 				}
 			}
-			//dprintf(("%d rects in res\n", (int)res.size()));
 		}
 
 		//Detection - returns most probable new target location (Max Sc)
 
+		class CalcScSrParallelLoopBody: public cv::ParallelLoopBody
+		{
+		public:
+			explicit CalcScSrParallelLoopBody (TLDDetector * detector, Size initSize):
+				detectorF (detector),
+				initSizeF (initSize)
+			{
+			}
+
+			virtual void operator () (const cv::Range & r) const
+			{
+				for (int ind = r.start; ind < r.end; ++ind)
+				{
+					resample(detectorF->resized_imgs[detectorF->ensScaleIDs[ind]],
+						Rect2d(detectorF->ensBuffer[ind], initSizeF),
+						detectorF->standardPatches[ind]);
+
+					detectorF->scValues[ind] = detectorF->Sc (detectorF->standardPatches[ind]);
+					detectorF->srValues[ind] = detectorF->Sr (detectorF->standardPatches[ind]);
+				}
+			}
+
+			TLDDetector * detectorF;
+			const Size initSizeF;
+		private:
+			CalcScSrParallelLoopBody (const CalcScSrParallelLoopBody&);
+			CalcScSrParallelLoopBody& operator= (const CalcScSrParallelLoopBody&);
+		};
+
 		bool TLDDetector::detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize)
 		{
 			patches.clear();
-			Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
 			Mat tmp;
 			int dx = initSize.width / 10, dy = initSize.height / 10;
 			Size2d size = img.size();
@@ -466,13 +340,13 @@ namespace cv
 			double maxSc = -5.0;
 			Rect2d maxScRect;
 			int scaleID;
-			std::vector <Mat> resized_imgs, blurred_imgs;
-			std::vector <Point> varBuffer, ensBuffer;
-			std::vector <int> varScaleIDs, ensScaleIDs;
-			//int64 e1, e2;
-			//double t;
 
-			//e1 = getTickCount();
+			resized_imgs.clear ();
+			blurred_imgs.clear ();
+			varBuffer.clear ();
+			ensBuffer.clear ();
+			varScaleIDs.clear ();
+			ensScaleIDs.clear ();
 
 			//Detection part
 			//Generate windows and filter by variance
@@ -502,12 +376,8 @@ namespace cv
 				GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, 0.0f);
 				blurred_imgs.push_back(tmp);
 			} while (size.width >= initSize.width && size.height >= initSize.height);
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Variance: %d\t%f\n", varBuffer.size(), t);
 
 			//Encsemble classification
-			//e1 = getTickCount();
 			for (int i = 0; i < (int)varBuffer.size(); i++)
 			{
 				prepareClassifiers(static_cast<int> (blurred_imgs[varScaleIDs[i]].step[0]));
@@ -516,21 +386,35 @@ namespace cv
 				ensBuffer.push_back(varBuffer[i]);
 				ensScaleIDs.push_back(varScaleIDs[i]);
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Ensemble: %d\t%f\n", ensBuffer.size(), t);
+
+			//Batch preparation
+			srValues.resize (ensBuffer.size());
+			scValues.resize (ensBuffer.size());
+
+			//Carefully resize standard patches with reference-counted Mat members
+			const int oldPatchesSize = (int)standardPatches.size();
+			standardPatches.resize (ensBuffer.size());
+			if ((int)ensBuffer.size() > oldPatchesSize)
+			{
+				Mat_<uchar> standardPatch(STANDARD_PATCH_SIZE, STANDARD_PATCH_SIZE);
+				for (int i = oldPatchesSize; i < (int)ensBuffer.size(); ++i)
+				{
+					standardPatches[i] = standardPatch.clone();
+				}
+			}
+
+			//Batch calculation
+			cv::parallel_for_ (cv::Range (0, (int)ensBuffer.size ()), CalcScSrParallelLoopBody (this, initSize));
 
 			//NN classification
-			//e1 = getTickCount();
 			for (int i = 0; i < (int)ensBuffer.size(); i++)
 			{
 				LabeledPatch labPatch;
 				double curScale = pow(SCALE_STEP, ensScaleIDs[i]);
 				labPatch.rect = Rect2d(ensBuffer[i].x*curScale, ensBuffer[i].y*curScale, initSize.width * curScale, initSize.height * curScale);
-				resample(resized_imgs[ensScaleIDs[i]], Rect2d(ensBuffer[i], initSize), standardPatch);
 
-				double srValue, scValue;
-				srValue = Sr(standardPatch);
+				const double srValue = srValues[i];
+				const double scValue = scValues[i];
 
 				////To fix: Check the paper, probably this cause wrong learning
 				//
@@ -548,23 +432,24 @@ namespace cv
 				{
 					npos++;
 				}
-				scValue = Sc(standardPatch);
+
 				if (scValue > maxSc)
 				{
 					maxSc = scValue;
 					maxScRect = labPatch.rect;
 				}
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("NN: %d\t%f\n", patches.size(), t);
 
 			if (maxSc < 0)
 				return false;
-			res = maxScRect;
-			return true;
+			else
+			{
+				res = maxScRect;
+				return true;
+			}
 		}
 
+#ifdef HAVE_OPENCL
 		bool TLDDetector::ocl_detect(const Mat& img, const Mat& imgBlurred, Rect2d& res, std::vector<LabeledPatch>& patches, Size initSize)
 		{
 			patches.clear();
@@ -580,10 +465,7 @@ namespace cv
 			std::vector <Mat> resized_imgs, blurred_imgs;
 			std::vector <Point> varBuffer, ensBuffer;
 			std::vector <int> varScaleIDs, ensScaleIDs;
-			//int64 e1, e2;
-			//double t;
 
-			//e1 = getTickCount();
 			//Detection part
 			//Generate windows and filter by variance
 			scaleID = 0;
@@ -612,12 +494,8 @@ namespace cv
 				GaussianBlur(resized_imgs[scaleID], tmp, GaussBlurKernelSize, 0.0f);
 				blurred_imgs.push_back(tmp);
 			} while (size.width >= initSize.width && size.height >= initSize.height);
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Variance: %d\t%f\n", varBuffer.size(), t);
 
 			//Encsemble classification
-			//e1 = getTickCount();
 			for (int i = 0; i < (int)varBuffer.size(); i++)
 			{
 				prepareClassifiers((int)blurred_imgs[varScaleIDs[i]].step[0]);
@@ -626,12 +504,8 @@ namespace cv
 				ensBuffer.push_back(varBuffer[i]);
 				ensScaleIDs.push_back(varScaleIDs[i]);
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("Ensemble: %d\t%f\n", ensBuffer.size(), t);
 
 			//NN classification
-			//e1 = getTickCount();
 			//Prepare batch of patches
 			int numOfPatches = (int)ensBuffer.size();
 			Mat_<uchar> stdPatches(numOfPatches, 225);
@@ -661,9 +535,6 @@ namespace cv
 
 				srValue = resultSr[i];
 
-				//srValue = Sr(standardPatch);
-				//printf("%f\t%f\t\n", srValue, resultSr[i]);
-
 				////To fix: Check the paper, probably this cause wrong learning
 				//
 				labPatch.isObject = srValue > THETA_NN;
@@ -687,15 +558,13 @@ namespace cv
 					maxScRect = labPatch.rect;
 				}
 			}
-			//e2 = getTickCount();
-			//t = (e2 - e1) / getTickFrequency()*1000.0;
-			//printf("NN: %d\t%f\n", patches.size(), t);
 
 			if (maxSc < 0)
 				return false;
 			res = maxScRect;
 			return true;
 		}
+#endif // HAVE_OPENCL
 
 		// Computes the variance of subimage given by box, with the help of two integral
 		// images intImgP and intImgP2 (sum of squares), which should be also provided.
