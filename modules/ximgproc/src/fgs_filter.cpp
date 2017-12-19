@@ -37,6 +37,7 @@
 #include "precomp.hpp"
 #include "opencv2/core/hal/intrin.hpp"
 #include <vector>
+#include <type_traits>
 
 namespace cv {
 namespace ximgproc {

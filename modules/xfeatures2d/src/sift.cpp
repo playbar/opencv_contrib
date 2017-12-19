@@ -1153,7 +1153,7 @@ void SIFT_Impl::detectAndCompute(InputArray _image, InputArray _mask,
     {
         //t = (double)getTickCount();
         findScaleSpaceExtrema(gpyr, dogpyr, keypoints);
-        KeyPointsFilter::removeDuplicatedSorted( keypoints );
+        KeyPointsFilter::removeDuplicated( keypoints );
 
         if( nfeatures > 0 )
             KeyPointsFilter::retainBest(keypoints, nfeatures);
